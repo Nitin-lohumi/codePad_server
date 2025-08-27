@@ -10,8 +10,10 @@ const Io = new Server(httpServer, { cors: { origin: "https://code-pad-weld.verce
 dotenv.config();
 app.use(express.json());
 app.use(cors({
-    origin: "https://code-pad-weld.vercel.app/",
+    origin: "https://code-pad-weld.vercel.app",
+    methods: ["GET", "POST"]
 }))
+
 app.get("/", (req, res) => {
     res.json({ msg: "hello" });
 });
