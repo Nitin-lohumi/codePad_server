@@ -197,6 +197,6 @@ app.post("/RunCode", async (req, res) => {
 
 
 console.log(roomCodes);
-httpServer.listen(4000, () => {
+httpServer.listen(process.env.PORT, () => {
     console.log("listen at port number -> http://localhost:4000");
 });
