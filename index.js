@@ -6,11 +6,11 @@ import axios from "axios";
 import dotenv from "dotenv"
 const app = express();
 const httpServer = http.createServer(app);
-const Io = new Server(httpServer, { cors: { origin: "*" } });
+const Io = new Server(httpServer, { cors: { origin: "https://code-pad-weld.vercel.app" } });
 dotenv.config();
 app.use(express.json());
 app.use(cors({
-    origin: "*",
+    origin: "https://code-pad-weld.vercel.app/",
 }))
 app.get("/", (req, res) => {
     res.json({ msg: "hello" });
