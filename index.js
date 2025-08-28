@@ -1,4 +1,4 @@
-import express, { response } from "express";
+import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
@@ -15,7 +15,7 @@ app.use(cors({
 }))
 
 app.get("/", (req, res) => {
-    res.json({ msg: "hello" });
+    res.json({ msg: "weclome to CodePad Server! " });
 });
 export const RoomNamespace = Io.of("/rooms");
 const roomCodes = {};
@@ -23,13 +23,12 @@ const JoinedPeople = {};
 const CodeOutput = {};
 let admin;
 RoomNamespace.on("connection", (socket) => {
-    console.log("A user connected", socket.id);
+    console.log("user is  connected", socket.id)
     socket.on("join-room", ({ RoomName, userName, isCreated }) => {
         socket.roomName = RoomName;
         socket.join(RoomName);
         if (!JoinedPeople[RoomName]) {
             admin = socket.id;
-            console.log(admin);
             JoinedPeople[RoomName] = [];
         }
 
@@ -37,13 +36,11 @@ RoomNamespace.on("connection", (socket) => {
             (user) => user.id === socket.id
         );
         if (!alreadyJoined) {
-            JoinedPeople[RoomName].push({ id: socket.id, userName });
+            JoinedPeople[RoomName].push({ id: socket.id, userName, msg: 0, chatOpen: false });
         }
         if (roomCodes[RoomName]) {
             socket.emit("init-code", roomCodes[RoomName]);
         }
-        console.log(`${userName} (${socket.id}) joined room ${RoomName}, created=${isCreated}`);
-        console.log(JoinedPeople)
         socket.to(RoomName).emit("userJoined", { id: socket.id, userName });
         socket.to(RoomName).emit("getUsers", JoinedPeople[RoomName] || []);
     });
@@ -73,10 +70,10 @@ RoomNamespace.on("connection", (socket) => {
     });
 
     socket.on("leave-room", ({ RoomName, userName }) => {
-        console.log(`${userName} left ${RoomName}`);
         if (socket.id == admin) {
             console.log("Admin  user is  disconnected", socket.id)
             delete JoinedPeople[RoomName];
+            delete roomCodes[RoomName]
         }
         if (JoinedPeople[RoomName]) {
             JoinedPeople[RoomName] = JoinedPeople[RoomName].filter(
@@ -84,8 +81,12 @@ RoomNamespace.on("connection", (socket) => {
             );
         }
         for (let roomID in JoinedPeople) {
-            if (!JoinedPeople[roomID].length) delete JoinedPeople[roomID]
+            if (!JoinedPeople[roomID].length) {
+                delete JoinedPeople[roomID];
+                delete roomCodes[roomID];
+            }
         }
+        console.log(" user is  disconnected", socket.id);
         Io.to(RoomName).emit("getUsers", JoinedPeople[RoomName] || []);
         socket.leave(RoomName);
         socket.disconnect(true);
@@ -96,19 +97,37 @@ RoomNamespace.on("connection", (socket) => {
         socket.to(RoomName).emit("code-change", code);
     });
 
+    socket.on("chatTabOpen", ({ ChatTabOpen, roomID }) => {
+        for (let i = 0; i < JoinedPeople[roomID].length; i++) {
+            if (JoinedPeople[roomID][i].id === socket.id) {
+                JoinedPeople[roomID][i].chatOpen = ChatTabOpen;
+            }
+        }
+    })
+
     socket.on("newMsg", ({ username, msg, roomID }) => {
+        for (let i = 0; i < JoinedPeople[roomID].length; i++) {
+            if (JoinedPeople[roomID][i].id !== socket.id && !JoinedPeople[roomID][i]?.chatOpen) {
+                JoinedPeople[roomID][i].msg++;
+            }
+        }
+        socket.to(roomID).emit("countMsg", JoinedPeople[roomID]);
         socket.broadcast.to(roomID).emit("getMsg", { username, msg, isMe: false });
     });
-
+    socket.on("changeCount", (roomID) => {
+        for (let i = 0; i < JoinedPeople[roomID].length; i++) {
+            if (JoinedPeople[roomID][i].id === socket.id) {
+                JoinedPeople[roomID][i].msg = 0;
+            }
+        }
+        console.log("changeCount", JoinedPeople);
+    });
     socket.on("totalUsers", (RoomName) => {
-        console.log(JoinedPeople);
         socket.emit("getUsers", JoinedPeople[RoomName] || []);
     });
 
     socket.on("isCodeRun", ({ socketId, RoomName }) => {
-        console.log("is code run", admin === socketId);
         if (admin === socketId) {
-            console.log("is run tap by admin", true);
             socket.to(RoomName).emit("runing", true);
         }
     })
@@ -125,8 +144,8 @@ RoomNamespace.on("connection", (socket) => {
     socket.on("disconnect", () => {
         const RoomName = socket.roomName;
         if (socket.id === admin) {
-            console.log("Admin  user is  disconnected", socket.id)
             delete JoinedPeople[RoomName]
+            delete roomCodes[RoomName];
         } else {
             for (let roomID in JoinedPeople) {
                 JoinedPeople[roomID] = JoinedPeople[roomID].filter(
@@ -137,19 +156,17 @@ RoomNamespace.on("connection", (socket) => {
             for (let roomID in JoinedPeople) {
                 if (!JoinedPeople[roomID].length) delete JoinedPeople[roomID]
             }
-            console.log("A user disconnected", socket.id);
         }
+        console.log("user is  disconnected", socket.id)
         socket.disconnect(true);
     });
 });
 
 app.post("/RunCode", async (req, res) => {
-    console.log("code is running");
     const { code, languageId } = req.body;
     if (!code || !languageId) {
         return res.status(400).json({ error: "Code and languageId are required" });
     }
-    console.log(code, languageId);
     try {
         const submissionResponse = await axios.post(
             "https://judge0-ce.p.rapidapi.com/submissions",
@@ -189,7 +206,6 @@ app.post("/RunCode", async (req, res) => {
         const error = resultResponse.data.stderr
             ? Buffer.from(resultResponse.data.stderr, "base64").toString("utf-8")
             : "";
-        console.log("output", output);
         res.json({ output, error });
     } catch (err) {
         console.error(err);
@@ -197,8 +213,6 @@ app.post("/RunCode", async (req, res) => {
     }
 });
 
-
-console.log(roomCodes);
 httpServer.listen(process.env.PORT, () => {
-    console.log("listen at port number -> http://localhost:4000");
+    console.log("listen at port number -> 4000");
 });
