@@ -31,7 +31,6 @@ RoomNamespace.on("connection", (socket) => {
             admin = socket.id;
             JoinedPeople[RoomName] = [];
         }
-
         const alreadyJoined = JoinedPeople[RoomName].some(
             (user) => user.id === socket.id
         );
@@ -70,10 +69,12 @@ RoomNamespace.on("connection", (socket) => {
     });
 
     socket.on("leave-room", ({ RoomName, userName }) => {
+        if (!RoomName) RoomName = socket.roomName;
+        if (!RoomName) return;
         if (socket.id == admin) {
             console.log("Admin  user is  disconnected", socket.id)
-            delete JoinedPeople[RoomName];
-            delete roomCodes[RoomName]
+            if (JoinedPeople[RoomName]) delete JoinedPeople[RoomName];
+            if (roomCodes[RoomName]) delete roomCodes[RoomName];
         }
         if (JoinedPeople[RoomName]) {
             JoinedPeople[RoomName] = JoinedPeople[RoomName].filter(
@@ -83,7 +84,7 @@ RoomNamespace.on("connection", (socket) => {
         for (let roomID in JoinedPeople) {
             if (!JoinedPeople[roomID].length) {
                 delete JoinedPeople[roomID];
-                delete roomCodes[roomID];
+                if (roomCodes[roomID]) delete roomCodes[roomID];
             }
         }
         console.log(" user is  disconnected", socket.id);
@@ -98,6 +99,7 @@ RoomNamespace.on("connection", (socket) => {
     });
 
     socket.on("chatTabOpen", ({ ChatTabOpen, roomID }) => {
+        if (!roomID || !JoinedPeople[roomID]) return;
         for (let i = 0; i < JoinedPeople[roomID].length; i++) {
             if (JoinedPeople[roomID][i].id === socket.id) {
                 JoinedPeople[roomID][i].chatOpen = ChatTabOpen;
@@ -106,15 +108,18 @@ RoomNamespace.on("connection", (socket) => {
     })
 
     socket.on("newMsg", ({ username, msg, roomID }) => {
-        for (let i = 0; i < JoinedPeople[roomID].length; i++) {
-            if (JoinedPeople[roomID][i].id !== socket.id && !JoinedPeople[roomID][i]?.chatOpen) {
-                JoinedPeople[roomID][i].msg++;
+        if (JoinedPeople[roomID]) {
+            for (let i = 0; i < JoinedPeople[roomID].length; i++) {
+                if (JoinedPeople[roomID][i].id !== socket.id && !JoinedPeople[roomID][i]?.chatOpen) {
+                    JoinedPeople[roomID][i].msg++;
+                }
             }
         }
-        socket.to(roomID).emit("countMsg", JoinedPeople[roomID]);
+        socket.to(roomID).emit("countMsg", JoinedPeople[roomID] || []);
         socket.broadcast.to(roomID).emit("getMsg", { username, msg, isMe: false });
     });
     socket.on("changeCount", (roomID) => {
+        if (!roomID || !JoinedPeople[roomID]) return;
         for (let i = 0; i < JoinedPeople[roomID].length; i++) {
             if (JoinedPeople[roomID][i].id === socket.id) {
                 JoinedPeople[roomID][i].msg = 0;
@@ -123,10 +128,13 @@ RoomNamespace.on("connection", (socket) => {
         console.log("changeCount", JoinedPeople);
     });
     socket.on("totalUsers", (RoomName) => {
+        if (!RoomName) RoomName = socket.roomName;
+        if (!RoomName) return;
         socket.emit("getUsers", JoinedPeople[RoomName] || []);
     });
 
     socket.on("isCodeRun", ({ socketId, RoomName }) => {
+        if (!roomID) return;
         if (admin === socketId) {
             socket.to(RoomName).emit("runing", true);
         }
@@ -144,21 +152,25 @@ RoomNamespace.on("connection", (socket) => {
     socket.on("disconnect", () => {
         const RoomName = socket.roomName;
         if (socket.id === admin) {
-            delete JoinedPeople[RoomName]
-            delete roomCodes[RoomName];
+            if (RoomName && JoinedPeople[RoomName]) delete JoinedPeople[RoomName];
+            if (RoomName && roomCodes[RoomName]) delete roomCodes[RoomName];
         } else {
             for (let roomID in JoinedPeople) {
+                const list = JoinedPeople[roomID];
+                if (!Array.isArray(list)) continue;
                 JoinedPeople[roomID] = JoinedPeople[roomID].filter(
                     (user) => user.id !== socket.id
                 );
                 Io.to(roomID).emit("getUsers", JoinedPeople[roomID]);
             }
             for (let roomID in JoinedPeople) {
-                if (!JoinedPeople[roomID].length) delete JoinedPeople[roomID]
+                if (!JoinedPeople[roomID]?.length) delete JoinedPeople[roomID];
             }
         }
         console.log("user is  disconnected", socket.id)
-        socket.disconnect(true);
+        try {
+            if (socket.connected) socket.disconnect(true);
+        } catch (_) { }
     });
 });
 
