@@ -91,9 +91,9 @@ RoomNamespace.on("connection", (socket) => {
         }
         console.log(" user is  disconnected", socket.id);
         Io.to(RoomName).emit("getUsers", JoinedPeople[RoomName] || []);
-        if (socketClient.connected) {
-            socketClient.leave(RoomName); 
-            socketClient.disconnect(true); 
+        if (socket.connected) {
+            socket.leave(RoomName);
+            socket.disconnect(true);
         }
     });
 
