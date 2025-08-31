@@ -87,7 +87,7 @@ RoomNamespace.on("connection", (socket) => {
                 if (roomCodes[roomID]) delete roomCodes[roomID];
             }
         }
-        console.log(" user is  disconnected", socket.id);
+        console.log(" user is  leave room", socket.id);
         Io.to(RoomName).emit("getUsers", JoinedPeople[RoomName] || []);
         if (socket.connected) {
             socket.leave(RoomName);
