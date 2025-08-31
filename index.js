@@ -60,7 +60,6 @@ RoomNamespace.on("connection", (socket) => {
 
             }
         }
-        console.log(JoinedPeople)
     })
 
     socket.on("language", ({ lang, roomId, code }) => {
@@ -74,7 +73,6 @@ RoomNamespace.on("connection", (socket) => {
         if (!RoomName) return;
 
         if (socket.id == admin) {
-            console.log("Admin  user is  disconnected", socket.id)
             if (JoinedPeople[RoomName]) delete JoinedPeople[RoomName];
             if (roomCodes[RoomName]) delete roomCodes[RoomName];
         }
@@ -129,7 +127,6 @@ RoomNamespace.on("connection", (socket) => {
                 JoinedPeople[roomID][i].msg = 0;
             }
         }
-        console.log("changeCount", JoinedPeople);
     });
     socket.on("totalUsers", (RoomName) => {
         socket.emit("getUsers", JoinedPeople[RoomName] || []);
